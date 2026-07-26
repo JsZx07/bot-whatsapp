@@ -34,7 +34,11 @@ def on_message(client: NewClient, ev: MessageEv):
     comando = texto[len(prefix):]
     
     match comando:
-        case "figurinha":
+
+        case "ping":
+            client.reply_message("Pong! 🏓", ev)
+    
+        case "figurinha" | "fig":
             midia_msg = get_media_message(ev)
 
             if midia_msg is None:
