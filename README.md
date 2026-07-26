@@ -22,7 +22,7 @@ Feito com [Neonize](https://github.com/krypton-byte/neonize), uma biblioteca Pyt
 
 1. Clone o repositório:
    ```bash
-   git clone [link-do-seu-repositorio]
+   git clone [https://github.com/JsZx07/bot-whatsapp]
    cd bot-whatsapp
    ```
 
