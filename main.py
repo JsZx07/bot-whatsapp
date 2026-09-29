@@ -1,13 +1,27 @@
 from neonize.client import NewClient
-from neonize.events import ConnectedEv, MessageEv, event
+from neonize.events import ConnectedEv, MessageEv, event, LoggedOutEv
+import subprocess
+import os
 
 client = NewClient("luno-bot")
 
 prefix = "."
 
-@client.event(ConnectedEv)
-def on_connected(client: NewClient, ev: ConnectedEv):
-    print("🚀 - Bot Conectado com Sucesso!")
+def enviar_notificacao(title, content):
+    if "TERMUX_VERSION" in os.environ:
+        subprocess.run([
+            "termux-notification",
+            "--title", title,
+            "--content", content,
+            "--priority", "high"
+        ])
+    else:
+        from plyer import notification
+        notification.notify(
+            title=title,
+            message=content,
+            timeout=10
+        )
 
 def get_media_message(ev):
     if ev.Message.imageMessage.URL or ev.Message.videoMessage.URL:
@@ -18,6 +32,17 @@ def get_media_message(ev):
         return quoted
 
     return None
+
+@client.event(ConnectedEv)
+def on_connected(client: NewClient, ev: ConnectedEv):
+    print("🚀 - Bot Conectado com Sucesso!")
+
+@client.event(LoggedOutEv)
+def on_logged_out(client: NewClient, ev: LoggedOutEv):
+    enviar_notificacao(
+        "⚠️ Bot desconectado!",
+        "A sessão do WhatsApp expirou. Escaneie o QR code novamente."
+    )
 
 @client.event(MessageEv)
 def on_message(client: NewClient, ev: MessageEv):
@@ -30,15 +55,14 @@ def on_message(client: NewClient, ev: MessageEv):
 
     if not texto or not texto.startswith(prefix):
         return
-    
-    comando = texto[len(prefix):]
-    
-    match comando:
 
+    comando = texto[len(prefix):]
+
+    match comando:
         case "ping":
             client.reply_message("Pong! 🏓", ev)
-    
-        case "figurinha" | "fig":
+
+        case "figurinha" | "fig" | "f":
             midia_msg = get_media_message(ev)
 
             if midia_msg is None:

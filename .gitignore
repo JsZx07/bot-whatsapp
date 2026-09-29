@@ -1,2 +1,4 @@
 luno-bot
 .venv
+.vscode/settings.json
+.gitignore
