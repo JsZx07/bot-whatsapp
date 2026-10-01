@@ -1,11 +1,15 @@
 from neonize.client import NewClient
 from neonize.events import ConnectedEv, MessageEv, event, LoggedOutEv
 import subprocess
+import tempfile
 import os
+import time
 
 client = NewClient("luno-bot")
 
 prefix = "."
+
+start_time = None
 
 def enviar_notificacao(title, content):
     if "TERMUX_VERSION" in os.environ:
@@ -23,6 +27,35 @@ def enviar_notificacao(title, content):
             timeout=10
         )
 
+def webp_convert(midia_bytes: bytes) -> bytes:
+    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp_in:
+        tmp_in.write(midia_bytes)
+        tmp_in_path = tmp_in.name
+
+    # fora do with ↓
+    tmp_out_path = tmp_in_path.replace(".mp4", ".webp")
+
+    try:
+        subprocess.run([
+            "ffmpeg", "-y",
+            "-i", tmp_in_path,
+            "-vcodec", "libwebp",
+            "-vf", "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2,fps=15",
+            "-loop", "0",
+            "-preset", "default",
+            "-an",
+            "-fps_mode", "vfr",
+            tmp_out_path
+        ], check=True, capture_output=True)
+
+        with open(tmp_out_path, "rb") as f:
+            return f.read()
+
+    finally:
+        os.unlink(tmp_in_path)
+        if os.path.exists(tmp_out_path):
+            os.unlink(tmp_out_path)
+
 def get_media_message(ev):
     if ev.Message.imageMessage.URL or ev.Message.videoMessage.URL:
         return ev.Message
@@ -35,6 +68,8 @@ def get_media_message(ev):
 
 @client.event(ConnectedEv)
 def on_connected(client: NewClient, ev: ConnectedEv):
+    global start_time
+    start_time = time.time()
     print("🚀 - Bot Conectado com Sucesso!")
 
 @client.event(LoggedOutEv)
@@ -60,7 +95,18 @@ def on_message(client: NewClient, ev: MessageEv):
 
     match comando:
         case "ping":
-            client.reply_message("Pong! 🏓", ev)
+            latency_ms = round(time.time() * 1000 - ev.Info.Timestamp)
+
+            if start_time:
+                uptime = int(time.time() - start_time)
+                days, remainder = divmod(uptime, 86400)
+                hours, remainder = divmod(remainder, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                uptime_str = f"{days}d {hours}h {minutes}m {seconds}s"
+            else:
+                uptime_str = "N/A"
+
+            client.reply_message(f"🚀 *BOT ONLINE*! \n\n📡 Latência: `{latency_ms}ms`\n⏱️ Uptime: `{uptime_str}`", ev)
 
         case "figurinha" | "fig" | "f":
             midia_msg = get_media_message(ev)
@@ -69,14 +115,22 @@ def on_message(client: NewClient, ev: MessageEv):
                 client.reply_message(f"ERRO! Mande uma foto, video ou gif junto com o comando *{prefix}figurinha*, ou use o comando respondendo uma mensagem com mídia! 📸", ev)
                 return
 
+            client.reply_message("Produzindo sua figurinha! Por favor, aguarde!", ev)
+
+            is_video = bool(midia_msg.videoMessage.URL)
+
             midia_bytes = client.download_any(midia_msg)
+
             if midia_bytes:
+                if is_video:
+                    midia_bytes = webp_convert(midia_bytes)
+
                 client.send_sticker(
                     ev.Info.MessageSource.Chat,
                     midia_bytes,
                     quoted=ev,
                     crop=False,
-                    enforce_not_broken=True
+                    enforce_not_broken=True,
                 )
         case _:
             pass
