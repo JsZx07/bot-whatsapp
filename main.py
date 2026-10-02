@@ -67,14 +67,14 @@ def send_sticker_webp(client, midia_bytes: bytes, ev):
     upload = client.upload(midia_bytes, MediaType.MediaImage)
 
     msg = Message(
-        stickerMessage = StickerMessage(
-            url = upload.url,
-            directPath = upload.directPath,
-            mediaKey = upload.mediaKey,
-            fileSHA256 = upload.fileSHA256,
-            fileEncSHA256 = upload.fileEncSHA256,
-            fileLength = len(midia_bytes),
-            mimetype = "image/webp",
+        stickerMessage=StickerMessage(
+            url=upload.url,
+            directPath=upload.DirectPath,
+            mediaKey=upload.MediaKey,
+            fileSHA256=upload.FileSHA256,
+            fileEncSHA256=upload.FileEncSHA256,
+            fileLength=len(midia_bytes),
+            mimetype="image/webp",
             isAnimated=True
         )
     )
