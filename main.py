@@ -133,7 +133,6 @@ def on_message(client: NewClient, ev: MessageEv):
                     midia_bytes,
                     quoted=ev,
                     crop=False,
-                    animated_gif=is_video,
                     enforce_not_broken=True
                 )
         case _:
