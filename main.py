@@ -128,15 +128,12 @@ def on_message(client: NewClient, ev: MessageEv):
             midia_bytes = client.download_any(midia_msg)
 
             if midia_bytes:
-                if is_video:
-                    midia_bytes = webp_convert(midia_bytes)
-
                 client.send_sticker(
                     ev.Info.MessageSource.Chat,
                     midia_bytes,
                     quoted=ev,
                     crop=False,
-                    animated_gif=False,
+                    animated_gif=is_video,
                     enforce_not_broken=True
                 )
         case _:
