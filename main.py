@@ -37,18 +37,19 @@ def webp_convert(midia_bytes: bytes) -> bytes:
         tmp_in_path = tmp_in.name
 
 
-    tmp_out_path = tmp_in_path.replace(".mp4", "_looped.mp4")
-
-    fps_flag = ["-vsync", "0"] if is_termux() else ["-fps_mode", "vfr"]
+    tmp_out_path = tmp_in_path.replace(".mp4", ".webp")
 
     try:
         subprocess.run([
             "ffmpeg", "-y",
-            "-stream_loop", "-1",
             "-i", tmp_in_path,
-            "-t", "6",
-            "-c", "copy",
-            *fps_flag,
+            "-vcodec", "libwebp_anim",
+            "-vf", "fps=15,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2",
+            "-lossless", "0",
+            "-q:v", "50",
+            "-loop", "0",
+            "-preset", "default",
+            "-an",
             tmp_out_path
         ], check=True, capture_output=True)
 
