@@ -7,6 +7,7 @@ import tempfile
 import os
 import time
 import sys
+import shutil
 
 client = NewClient("luno-bot")
 
@@ -26,29 +27,32 @@ def enviar_notificacao(title, content):
             "--priority", "high"
         ])
     else:
-        from plyer import notification
-        notification.notify(
-            title=title,
-            message=content,
-            timeout=10
-        )
+        try:
+            from plyer import notification
+            notification.notify(
+                title=title,
+                message=content,
+                timeout=10
+            )
+        except Exception:
+            pass
 
 def webp_convert(midia_bytes: bytes) -> bytes:
     with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp_in:
         tmp_in.write(midia_bytes)
         tmp_in_path = tmp_in.name
 
-
     tmp_out_path = tmp_in_path.replace(".mp4", ".webp")
 
     try:
         subprocess.run([
             "ffmpeg", "-y",
+            "-t", "6",
             "-i", tmp_in_path,
             "-vcodec", "libwebp_anim",
-            "-vf", "fps=15,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2",
-            "-lossless", "0",
-            "-q:v", "50",
+            "-vf", "fps=12,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2",
+            "-compression_level", "6",
+            "-q:v", "40",
             "-loop", "0",
             "-preset", "default",
             "-an",
@@ -59,7 +63,8 @@ def webp_convert(midia_bytes: bytes) -> bytes:
             return f.read()
 
     finally:
-        os.unlink(tmp_in_path)
+        if os.path.exists(tmp_in_path):
+            os.unlink(tmp_in_path)
         if os.path.exists(tmp_out_path):
             os.unlink(tmp_out_path)
 
@@ -68,7 +73,7 @@ def send_sticker_webp(client, midia_bytes: bytes, ev):
 
     msg = Message(
         stickerMessage=StickerMessage(
-            url=upload.url,
+            URL=getattr(upload, "url", getattr(upload, "URL", "")),
             directPath=upload.DirectPath,
             mediaKey=upload.MediaKey,
             fileSHA256=upload.FileSHA256,
@@ -82,12 +87,16 @@ def send_sticker_webp(client, midia_bytes: bytes, ev):
     client.send_message(ev.Info.MessageSource.Chat, msg)
 
 def get_media_message(ev):
-    if ev.Message.imageMessage.URL or ev.Message.videoMessage.URL:
+    if (ev.Message.imageMessage and ev.Message.imageMessage.URL) or \
+       (ev.Message.videoMessage and ev.Message.videoMessage.URL):
         return ev.Message
 
-    quoted = ev.Message.extendedTextMessage.contextInfo.quotedMessage
-    if quoted.imageMessage.URL or quoted.videoMessage.URL:
-        return quoted
+    ext = getattr(ev.Message, "extendedTextMessage", None)
+    if ext and hasattr(ext, "contextInfo") and ext.contextInfo.HasField("quotedMessage"):
+        quoted = ext.contextInfo.quotedMessage
+        if (quoted.imageMessage and quoted.imageMessage.URL) or \
+           (quoted.videoMessage and quoted.videoMessage.URL):
+            return quoted
 
     return None
 
@@ -104,19 +113,43 @@ def on_logged_out(client: NewClient, ev: LoggedOutEv):
         "A sessão do WhatsApp expirou. Escaneie o QR code novamente."
     )
 
+    path = "luno-bot"
+
+    try:
+        if os.path.isfile(path) or os.path.islink(path):
+            os.remove(path)
+            print("🗑️ Sessão/banco de dados removido com sucesso (arquivo).")
+        elif os.path.isdir(path):
+            shutil.rmtree(path)
+            print("🗑️ Pasta de sessão removida com sucesso.")
+        else:
+            for file in os.listdir("."):
+                if file.startswith("luno-bot"):
+                    if os.path.isdir(file):
+                        shutil.rmtree(file)
+                    else:
+                        os.remove(file)
+            print("🗑️ Arquivos da sessão limpos.")
+    except FileNotFoundError:
+        print("Aviso: Sessão já não existia no disco.")
+    except PermissionError:
+        print("Erro: O arquivo de sessão está bloqueado pelo processo. Feche o bot antes de apagar.")
+    except Exception as e:
+        print(f"Erro ao tentar remover a sessão: {e}")
+
 @client.event(MessageEv)
 def on_message(client: NewClient, ev: MessageEv):
     texto = (
-        ev.Message.conversation
-        or ev.Message.extendedTextMessage.text
-        or ev.Message.imageMessage.caption
-        or ev.Message.videoMessage.caption
+        getattr(ev.Message, "conversation", "")
+        or getattr(ev.Message.extendedTextMessage, "text", "")
+        or getattr(ev.Message.imageMessage, "caption", "")
+        or getattr(ev.Message.videoMessage, "caption", "")
     )
 
     if not texto or not texto.startswith(prefix):
         return
 
-    comando = texto[len(prefix):]
+    comando = texto[len(prefix):].strip()
 
     match comando:
         case "ping":
@@ -142,23 +175,28 @@ def on_message(client: NewClient, ev: MessageEv):
 
             client.reply_message("Produzindo sua figurinha! Por favor, aguarde!", ev)
 
-            is_video = bool(midia_msg.videoMessage.URL)
+            is_video = bool(midia_msg.videoMessage and midia_msg.videoMessage.URL)
 
-            midia_bytes = client.download_any(midia_msg)
+            try:
+                midia_bytes = client.download_any(midia_msg)
 
-            if midia_bytes:
-                if is_video:
-                    midia_bytes = webp_convert(midia_bytes)
-                    send_sticker_webp(client, midia_bytes, ev)
-
+                if midia_bytes:
+                    if is_video:
+                        midia_bytes = webp_convert(midia_bytes)
+                        send_sticker_webp(client, midia_bytes, ev)
+                    else:
+                        client.send_sticker(
+                            ev.Info.MessageSource.Chat,
+                            midia_bytes,
+                            quoted=ev,
+                            crop=False,
+                            enforce_not_broken=True
+                        )
                 else:
-                    client.send_sticker(
-                        ev.Info.MessageSource.Chat,
-                        midia_bytes,
-                        quoted=ev,
-                        crop=False,
-                        enforce_not_broken=True
-                    )
+                    client.reply_message("⚠️ Não foi possível baixar a mídia. Tente novamente!", ev)
+            except Exception as e:
+                print(f"Erro ao gerar figurinha: {e}")
+                client.reply_message("❌ Ocorreu um erro ao processar sua figurinha.", ev)
         case _:
             pass
 
