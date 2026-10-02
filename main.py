@@ -1,5 +1,7 @@
 from neonize.client import NewClient
 from neonize.events import ConnectedEv, MessageEv, event, LoggedOutEv
+from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import Message, StickerMessage
+from neonize.utils.enum import MediaType
 import subprocess
 import tempfile
 import os
@@ -60,6 +62,24 @@ def webp_convert(midia_bytes: bytes) -> bytes:
         os.unlink(tmp_in_path)
         if os.path.exists(tmp_out_path):
             os.unlink(tmp_out_path)
+
+def send_sticker_webp(client, midia_bytes: bytes, ev):
+    upload = client.upload(midia_bytes, MediaType.MediaImage)
+
+    msg = Message(
+        stickerMessage = StickerMessage(
+            url = upload.url,
+            directPath = upload.directPath,
+            mediaKey = upload.mediaKey,
+            fileSHA256 = upload.fileSHA256,
+            fileEncSHA256 = upload.fileEncSHA256,
+            fileLength = len(midia_bytes),
+            mimetype = "image/webp",
+            isAnimated=True
+        )
+    )
+
+    client.send_message(ev.Info.MessageSource.Chat, msg)
 
 def get_media_message(ev):
     if ev.Message.imageMessage.URL or ev.Message.videoMessage.URL:
@@ -129,13 +149,16 @@ def on_message(client: NewClient, ev: MessageEv):
             if midia_bytes:
                 if is_video:
                     midia_bytes = webp_convert(midia_bytes)
-                client.send_sticker(
-                    ev.Info.MessageSource.Chat,
-                    midia_bytes,
-                    quoted=ev,
-                    crop=False,
-                    enforce_not_broken=True
-                )
+                    send_sticker_webp(client, midia_bytes, ev)
+
+                else:
+                    client.send_sticker(
+                        ev.Info.MessageSource.Chat,
+                        midia_bytes,
+                        quoted=ev,
+                        crop=False,
+                        enforce_not_broken=True
+                    )
         case _:
             pass
 
