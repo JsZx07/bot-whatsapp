@@ -137,6 +137,11 @@ def on_logged_out(client: NewClient, ev: LoggedOutEv):
     except Exception as e:
         print(f"Erro ao tentar remover a sessão: {e}")
 
+    print("🔄 Reiniciando o bot para gerar um novo QR Code...")
+    time.sleep(2)
+
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
 @client.event(MessageEv)
 def on_message(client: NewClient, ev: MessageEv):
     texto = (
@@ -199,6 +204,13 @@ def on_message(client: NewClient, ev: MessageEv):
                 client.reply_message("❌ Ocorreu um erro ao processar sua figurinha.", ev)
         case _:
             pass
+
+session_path = "luno-bot"
+if not os.path.exists(session_path):
+    print("\n" + "="*50)
+    print("📱 Nenhuma sessão ativa encontrada!")
+    print("👉 Por favor, abra o WhatsApp no celular e ESCANEIE O QR CODE abaixo para ativar o bot.")
+    print("="*50 + "\n")
 
 client.connect()
 event.wait()
