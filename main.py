@@ -37,19 +37,17 @@ def webp_convert(midia_bytes: bytes) -> bytes:
         tmp_in_path = tmp_in.name
 
 
-    tmp_out_path = tmp_in_path.replace(".mp4", ".webp")
+    tmp_out_path = tmp_in_path.replace(".mp4", "_looped.mp4")
 
     fps_flag = ["-vsync", "0"] if is_termux() else ["-fps_mode", "vfr"]
 
     try:
         subprocess.run([
             "ffmpeg", "-y",
+            "-stream_loop", "-1",
             "-i", tmp_in_path,
-            "-vcodec", "libwebp",
-            "-vf", "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2,fps=15",
-            "-loop", "0",
-            "-preset", "default",
-            "-an",
+            "-t", "6",
+            "-c", "copy",
             *fps_flag,
             tmp_out_path
         ], check=True, capture_output=True)
@@ -128,6 +126,8 @@ def on_message(client: NewClient, ev: MessageEv):
             midia_bytes = client.download_any(midia_msg)
 
             if midia_bytes:
+                if is_video:
+                    midia_bytes = webp_convert(midia_bytes)
                 client.send_sticker(
                     ev.Info.MessageSource.Chat,
                     midia_bytes,
