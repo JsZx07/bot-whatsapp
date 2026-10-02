@@ -4,6 +4,7 @@ import subprocess
 import tempfile
 import os
 import time
+import sys
 
 client = NewClient("luno-bot")
 
@@ -11,8 +12,11 @@ prefix = "."
 
 start_time = None
 
+def is_termux() -> bool:
+    return "com.termux" in sys.executable
+
 def enviar_notificacao(title, content):
-    if "TERMUX_VERSION" in os.environ:
+    if is_termux():
         subprocess.run([
             "termux-notification",
             "--title", title,
@@ -32,7 +36,7 @@ def webp_convert(midia_bytes: bytes) -> bytes:
         tmp_in.write(midia_bytes)
         tmp_in_path = tmp_in.name
 
-    # fora do with ↓
+
     tmp_out_path = tmp_in_path.replace(".mp4", ".webp")
 
     try:
@@ -55,6 +59,12 @@ def webp_convert(midia_bytes: bytes) -> bytes:
         os.unlink(tmp_in_path)
         if os.path.exists(tmp_out_path):
             os.unlink(tmp_out_path)
+
+def convert_video(midia_bytes: bytes) -> bytes:
+    if is_termux():
+        return midia_bytes
+    else:
+        return webp_convert(midia_bytes)
 
 def get_media_message(ev):
     if ev.Message.imageMessage.URL or ev.Message.videoMessage.URL:
@@ -123,14 +133,15 @@ def on_message(client: NewClient, ev: MessageEv):
 
             if midia_bytes:
                 if is_video:
-                    midia_bytes = webp_convert(midia_bytes)
+                    midia_bytes = convert_video(midia_bytes)
 
                 client.send_sticker(
                     ev.Info.MessageSource.Chat,
                     midia_bytes,
                     quoted=ev,
                     crop=False,
-                    enforce_not_broken=True,
+                    animated_gif=is_video and is_termux(),
+                    enforce_not_broken=True
                 )
         case _:
             pass
