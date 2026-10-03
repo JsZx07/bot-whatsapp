@@ -159,8 +159,6 @@ def on_message(client: NewClient, ev: MessageEv):
     match comando:
         case "ping":
             latency_ms = round(time.time() * 1000 - ev.Info.Timestamp)
-            if str(latency_ms).startswith("-"):
-                str(latency_ms).replace("-", '')
             if start_time:
                 uptime = int(time.time() - start_time)
                 days, remainder = divmod(uptime, 86400)
@@ -170,7 +168,7 @@ def on_message(client: NewClient, ev: MessageEv):
             else:
                 uptime_str = "N/A"
 
-            client.reply_message(f"🚀 *BOT ONLINE*! \n\n📡 Latência: `{str(latency_ms)}ms`\n⏱️ Uptime: `{uptime_str}`", ev)
+            client.reply_message(f"🚀 *BOT ONLINE*! \n\n📡 Latência: `{abs(latency_ms)}ms`\n⏱️ Uptime: `{uptime_str}`", ev)
 
         case "figurinha" | "fig" | "f":
             midia_msg = get_media_message(ev)
